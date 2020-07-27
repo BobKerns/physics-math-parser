@@ -9,13 +9,16 @@
 
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import typescript from 'rollup-plugin-typescript2';
 import {terser} from 'rollup-plugin-terser';
 import visualizerNoName, {VisualizerOptions} from 'rollup-plugin-visualizer';
 import {OutputOptions, RollupOptions} from "rollup";
 import {chain as flatMap} from 'ramda';
 import externalGlobals from "rollup-plugin-external-globals";
 import serve from "rollup-plugin-serve";
+import polyfills from 'rollup-plugin-node-polyfills';
+import path from 'path';
+import fsx from 'fs';
+const fs = fsx.promises;
 
 /**
  * The visualizer plugin fails to set the plugin name. We wrap it to remedy that.
@@ -31,14 +34,14 @@ const visualizer = (opts?: Partial<VisualizerOptions>) => {
 
 const mode = process.env.NODE_ENV;
 // noinspection JSUnusedLocalSymbols
-const dev = mode === 'development';
+const dev = mode !== 'production';
 const serve_mode = process.env.SERVE && dev;
 const serve_doc = process.env.SERVE_DOC && serve_mode;
 
 /**
  * Avoid non-support of ?. optional chaining.
  */
-const DISABLE_TERSER = true;
+const DISABLE_TERSER = false;
 
 /**
  * A rough description of the contents of [[package.json]].
@@ -110,35 +113,68 @@ const dbg: any = {name: 'dbg'};
  * @param resolved
  */
 const checkExternal = (id: string, from?: string, resolved?: boolean): boolean =>
-    !/gl-matrix|glMatrix/i.test(id) && (resolved
-        ? /node_modules/.test(id)
-        : !/^\./.test(id));
+     false ;
 
 const options: RollupOptions = {
-    input:'./src/index.ts',
+    input:'./build/src/index.js',
     output: outputs(pkg),
     external: checkExternal,
     plugins: [
+        {
+            name: 'resolveAntler4ts',
+            buildStart(options) {
+                this.warn(`buildStart(${JSON.stringify(options)})`);
+            },
+            resolveFileUrl(options) { this.warn(`resolveFile(${JSON.stringify(options)})`); return null; },
+            resolveDynamicImport(a, b) {
+                this.warn(`resolveDynamicImport(${a}, ${b})`);
+                return null;
+            },
+            async resolveId(source, importer) {
+                const original = source;
+                if (source.startsWith("\0")) {
+                    this.warn(`SKIP PRIVATE: resolveId(${source}, ${importer})`);
+                    return null;
+                }
+                if (importer && (source.startsWith('.') || source.indexOf('/') > 0)) {
+                    const root = path.dirname(importer.replace(/\/gen\//, '/'));
+                    source = path.join(root, `${source}.js`);
+                    this.warn(`RESOLVE: ${original} ${importer.replace(/\/gen\//, '/')} => ${source}`);
+                }
+                const subst =
+                    (/antlr4ts$/.test(source) || (/antlr4ts\/[^\/]+/.test(source) && await fs.access(source)))
+                        ? 'build/src/antlr4ts/index.js'
+                        : (/antlr4ts\/atn/.test(source) && await fs.access(source))
+                        ? 'build/src/antlr4ts/atn/index.js'
+                        : null;
+                if (subst) {
+                    this.warn(`SUBST: resolveId(${source}, ${importer}) => ${subst}`);
+                } else {
+                    this.warn(`SKIP: resolveId(${source}, ${importer})`);
+                }
+                return subst;
+            }
+        },
         resolve({
             // Check for these in package.json
             mainFields: mainFields(pkg, ['module', 'main', 'browser'])
         }),
-        typescript({
+        /*
+        ts({
              tsconfig: 'src/tsconfig.json',
-             include: "src/*.ts",
-             objectHashIgnoreUnknownHack: true,
-             verbosity: 1,
-             cacheRoot: "./build/rts2-cache",
-             // false = Put the declaration files into the regular output in lib/
-             useTsconfigDeclarationDir: false
+             include: "src/*.ts"
          }),
+       */
         commonjs({
-            extensions: [".js", ".ts"]
+            extensions: [".js"]
         }),
+        polyfills({}) as unknown as Plugin,
+
         externalGlobals({
             // 'gl-matrix': "glMatrix",
             //'katex': 'katex',
-            'ramda': 'ramda'
+            // 'ramda': 'ramda'
+            // 'antlr4ts': 'antlr4ts'
         }),
         ...(!dev && !DISABLE_TERSER) ? [
             terser({

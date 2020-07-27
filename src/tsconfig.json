@@ -11,6 +11,8 @@
     // "tsBuildInfoFile": "../build/.tsbuild-info-src"
     // Project layout. Changes not recommended.
     "outDir": "../build/src",
-    "rootDir": "."
+    "rootDir": ".",
+    // Needed for antlr4ts output.
+    "strictPropertyInitialization": false
   }
 }

@@ -11,24 +11,20 @@
  * @preferred
  * @module Index
  */
+import {MathParser} from "./gen/MathParser";
 
-import R from 'ramda';
+export * from './gen/MathLexer';
+export * from './gen/MathParser';
+export * from './gen/MathListener';
+export * from './gen/MathVisitor';
+import {CharStreams, CommonTokenStream} from 'antlr4ts';
+export {CharStreams, CommonTokenStream};
+import {MathLexer} from './gen/MathLexer';
 
-/**
- * [Typedoc](https://typedoc.org/guides/doccomments/) is supported. It supports:
- *
- * * [MarkDown](https://marked.js.org/)
- * * [PlantUML](http://plantuml.com/) \
- *    UML requires that [GraphViz](https://graphviz.gitlab.io/) be installed. \
- *    <uml>
- *     A: field -> B
- *    </uml>
- * * [Mermaid](https://mermaidjs.github.io/)
- * @mermaid Mermaid diagrams
- * graph TD
- *   A-->B;
- *   B-->C;
- */
-export default function hello() {
-    return R.map(a => a.toUpperCase(), "Hello, World!".split(/()/)).filter(a => /[^o,]/i.test(a)).join('');
+export function parse(str: string) {
+    const stream = CharStreams.fromString(str);
+    const lex = new MathLexer(stream);
+    const tok = new CommonTokenStream(lex);
+    const parser = new MathParser(tok);
+    return parser.expression_or_equation();
 }
