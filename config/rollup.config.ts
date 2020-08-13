@@ -9,9 +9,9 @@
 
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
-import {terser} from 'rollup-plugin-terser';
+//import {terser} from 'rollup-plugin-terser';
 import visualizerNoName, {VisualizerOptions} from 'rollup-plugin-visualizer';
-import {OutputOptions, RollupOptions} from "rollup";
+import {OutputOptions, RollupOptions, Plugin} from "rollup";
 import {chain as flatMap} from 'ramda';
 import externalGlobals from "rollup-plugin-external-globals";
 import serve from "rollup-plugin-serve";
@@ -41,7 +41,7 @@ const serve_doc = process.env.SERVE_DOC && serve_mode;
 /**
  * Avoid non-support of ?. optional chaining.
  */
-const DISABLE_TERSER = false;
+const DISABLE_TERSER = true;
 
 /**
  * A rough description of the contents of [[package.json]].
@@ -69,7 +69,21 @@ export const outputs = (p: Package) => flatMap((e: OutputOptions) => (e.file ? [
             globals: {
                 katex: "katex",
                 d3: "d3",
-                "@observablehq/stdlib": "observablehq"
+                "@observablehq/stdlib": "observablehq",
+                antlr4ts: 'antlr4ts',
+                'antlr4ts/Parser': 'antlr4ts.Parser',
+                'antlr4ts/Lexer': 'antlr4ts.Lexer',
+                'antlr4ts/Token': 'antlr4ts.Token',
+                'antlr4ts/FailedPredicateException': 'antlr4ts.FailedPredicateException',
+                'antlr4ts/NoViableAltException': 'antlr4ts.NoViableAltException',
+                'antlr4ts/ParserRuleContext': 'antlr4ts.ParserRuleContext',
+                'antlr4ts/RecognitionException': 'antlr4ts.RecognitionException',
+                'antlr4ts/VocabularyImpl': 'antlr4ts.VocabularyImpl',
+                'antlr4ts/misc/Utils': 'antlr4ts.misc.Utils',
+                'antlr4ts/atn/ATN': 'antlr4ts.atn.ATN',
+                'antlr4ts/atn/ATNDeserializer': 'antlr4ts.atn.ATNDeserializer',
+                'antlr4ts/atn/ParserATNSimulator': 'antlr4ts.atn.ParserATNSimulator',
+                'antlr4ts/atn/LexerATNSimulator': 'antlr4ts.atn.LexerATNSimulator'
                 // "ramda": "ramda",
                 // "gl-matrix": "glMatrix"
             }
@@ -112,49 +126,64 @@ const dbg: any = {name: 'dbg'};
  * @param from
  * @param resolved
  */
-const checkExternal = (id: string, from?: string, resolved?: boolean): boolean =>
-     false ;
+const checkExternal = (id: string, from?: string, resolved?: boolean): boolean => {
+    //process.stderr.write(`id = ${id}\n`);
+    return /antlr4ts/.test(id);
+}
+
+const exists = async (file: string) => {
+    try {
+        await fs.access(file);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+const resolveAntlr4ts: Plugin = {
+    name: 'resolveAntler4ts',
+    buildStart(options) {
+        this.warn(`buildStart(${JSON.stringify(options)})`);
+    },
+    resolveFileUrl(options) { this.warn(`resolveFile(${JSON.stringify(options)})`); return null; },
+    resolveDynamicImport(a, b) {
+        this.warn(`resolveDynamicImport(${a}, ${b})`);
+        return null;
+    },
+    async resolveId(source, importer) {
+        const original = source;
+        if (source.startsWith("\0")) {
+            this.warn(`SKIP PRIVATE: resolveId(${source}, ${importer})`);
+            return null;
+        }
+        if (importer && (source.startsWith('.') || source.indexOf('/') > 0)) {
+            const root = path.dirname(importer.replace(/\/gen\//, '/node_modules'));
+            source = path.join(root, `${source}.js`);
+            this.warn(`RESOLVE: ${original} ${importer.replace(/\/gen\//, '/')} => ${source}`);
+        }/*
+                const subst =
+                    (/antlr4ts$/.test(source) || (/antlr4ts\/[^\/]+/.test(source) && await fs.exists(source)))
+                        ? 'build/src/antlr4ts/index.js'
+                        : (/antlr4ts\/atn/.test(source) && await exists(source))
+                        ? 'build/src/antlr4ts/atn/index.js'
+                        : null;
+                        */
+        const subst = (/antlr4ts$|antlr4ts\//.test(source) && await exists(source)) ? source : null;
+        if (subst) {
+            this.warn(`SUBST: resolveId(${source}, ${importer}) => ${subst}`);
+        } else {
+            this.warn(`SKIP: resolveId(${source}, ${importer})`);
+        }
+        return subst;
+    }
+};
 
 const options: RollupOptions = {
     input:'./build/src/index.js',
     output: outputs(pkg),
     external: checkExternal,
     plugins: [
-        {
-            name: 'resolveAntler4ts',
-            buildStart(options) {
-                this.warn(`buildStart(${JSON.stringify(options)})`);
-            },
-            resolveFileUrl(options) { this.warn(`resolveFile(${JSON.stringify(options)})`); return null; },
-            resolveDynamicImport(a, b) {
-                this.warn(`resolveDynamicImport(${a}, ${b})`);
-                return null;
-            },
-            async resolveId(source, importer) {
-                const original = source;
-                if (source.startsWith("\0")) {
-                    this.warn(`SKIP PRIVATE: resolveId(${source}, ${importer})`);
-                    return null;
-                }
-                if (importer && (source.startsWith('.') || source.indexOf('/') > 0)) {
-                    const root = path.dirname(importer.replace(/\/gen\//, '/'));
-                    source = path.join(root, `${source}.js`);
-                    this.warn(`RESOLVE: ${original} ${importer.replace(/\/gen\//, '/')} => ${source}`);
-                }
-                const subst =
-                    (/antlr4ts$/.test(source) || (/antlr4ts\/[^\/]+/.test(source) && await fs.access(source)))
-                        ? 'build/src/antlr4ts/index.js'
-                        : (/antlr4ts\/atn/.test(source) && await fs.access(source))
-                        ? 'build/src/antlr4ts/atn/index.js'
-                        : null;
-                if (subst) {
-                    this.warn(`SUBST: resolveId(${source}, ${importer}) => ${subst}`);
-                } else {
-                    this.warn(`SKIP: resolveId(${source}, ${importer})`);
-                }
-                return subst;
-            }
-        },
+        // resolveAntlr4ts,
         resolve({
             // Check for these in package.json
             mainFields: mainFields(pkg, ['module', 'main', 'browser'])
@@ -173,14 +202,29 @@ const options: RollupOptions = {
         externalGlobals({
             // 'gl-matrix': "glMatrix",
             //'katex': 'katex',
-            // 'ramda': 'ramda'
-            // 'antlr4ts': 'antlr4ts'
+            // 'ramda': 'ramda',
+            'antlr4ts': 'antlr4ts',
+            'antlr4ts/Parser': 'antlr4ts',
+            'antlr4ts/Lexer': 'antlr4ts',
+            'antlr4ts/Token': 'antlr4ts',
+            'antlr4ts/FailedPredicateException': 'antlr4ts',
+            'antlr4ts/NoViableAltException': 'antlr4ts',
+            'antlr4ts/ParserRuleContext': 'antlr4ts',
+            'antlr4ts/RecognitionException': 'antlr4ts',
+            'antlr4ts/VocabularyImpl': 'antlr4ts',
+            'antlr4ts/misc/Utils': 'antlr4ts.misc',
+            'antlr4ts/atn/ATN': 'antlr4ts.atn',
+            'antlr4ts/atn/ATNDeserializer': 'antlr4ts.atn',
+            'antlr4ts/atn/ParserATNSimulator': 'antlr4ts.atn',
+            'antlr4ts/atn/LexerATNSimulator': 'antlr4ts.atn'
         }),
+        /*
         ...(!dev && !DISABLE_TERSER) ? [
             terser({
             module: true
         })
         ] : [],
+         */
         visualizer({
             filename: "build/build-stats.html",
             title: "Build Stats"

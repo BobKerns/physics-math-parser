@@ -11,15 +11,17 @@
  * @preferred
  * @module Index
  */
+import {CharStreams as xCharStreams, CommonTokenStream as xCommonTokenStream} from 'antlr4ts';
+export const CharStreams = xCharStreams;
+export const CommonTokenStream = xCommonTokenStream;
+
+import {MathLexer} from './gen/MathLexer';
 import {MathParser} from "./gen/MathParser";
 
 export * from './gen/MathLexer';
 export * from './gen/MathParser';
 export * from './gen/MathListener';
 export * from './gen/MathVisitor';
-import {CharStreams, CommonTokenStream} from 'antlr4ts';
-export {CharStreams, CommonTokenStream};
-import {MathLexer} from './gen/MathLexer';
 
 export function parse(str: string) {
     const stream = CharStreams.fromString(str);
@@ -28,3 +30,4 @@ export function parse(str: string) {
     const parser = new MathParser(tok);
     return parser.expression_or_equation();
 }
+
