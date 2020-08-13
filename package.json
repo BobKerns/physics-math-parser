@@ -48,7 +48,6 @@
   "homepage": "https://github.com/BobKerns/physics-math-parser#readme",
   "dependencies": {
     "antlr4ts": "^0.5.0-alpha.3",
-    "antlr4ts-root": "file:imports/antlr4ts",
     "rollup-plugin-node-polyfills": "^0.2.1",
     "tslib": "^2.0.1"
   },
