@@ -39,8 +39,7 @@ node_modules
 /config/dist
 /config/lib
 !.gitignore
-/src/gen
-/src/antlr4ts
+#gen
 /imports
 
 # IDE settings are a mixed bag.
