@@ -24,7 +24,7 @@ const fs = fsx.promises;
  * The visualizer plugin fails to set the plugin name. We wrap it to remedy that.
  * @param opts
  */
-const visualizer = (opts?: Partial<VisualizerOptions>) => {
+const visualizer = (opts?: Partial<VisualizerOptions>): Plugin => {
     const noname: Partial<Plugin> = visualizerNoName(opts);
     return {
         name: "Visualizer",
